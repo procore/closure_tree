@@ -2,16 +2,10 @@ cache: bundler
 sudo: false
 language: ruby
 rvm:
-  - 2.1.5
-  - rbx-2
-  - jruby-19mode
-#  - ruby-head
-#  - rbx-head
-#  - jruby-head
+  - 2.2.3
+  - jruby-head
 
 gemfile:
-  - gemfiles/activerecord_3.2.gemfile
-  - gemfiles/activerecord_4.0.gemfile
   - gemfiles/activerecord_4.1.gemfile
   - gemfiles/activerecord_4.2.gemfile
   - gemfiles/activerecord_edge.gemfile
@@ -21,24 +15,16 @@ env:
   - DB=mysql
   - DB=postgresql
 
-addons:
-  postgresql: "9.3"
+#addons:
+#  postgresql: "9.3"
 
 script: WITH_ADVISORY_LOCK_PREFIX=$TRAVIS_JOB_ID bundle exec rake --trace spec:all
 
 matrix:
   allow_failures:
     - gemfile: gemfiles/activerecord_edge.gemfile
-    - rvm: rbx-2
-    - rvm: jruby-19mode
-    - rvm: ruby-head
-    - rvm: rbx-head
     - rvm: jruby-head
 
   exclude:
-    - rvm: ruby-head
-      gemfile: gemfiles/activerecord_3.2.gemfile
-    - rvm: ruby-head
-      gemfile: gemfiles/activerecord_4.0.gemfile
     - rvm: ruby-head
       gemfile: gemfiles/activerecord_4.1.gemfile

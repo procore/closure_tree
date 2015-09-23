@@ -35,7 +35,8 @@ begin
 end unless ENV['NONUKES']
 
 ActiveRecord::Base.establish_connection(config)
-Foreigner.load
+# Drop this when support for ActiveRecord 4.1 is removed
+Foreigner.load if defined?(Foreigner)
 
 require "#{database_folder}/schema"
 require "#{database_folder}/models"
@@ -44,7 +45,7 @@ require "#{database_folder}/models"
 def count_queries(&block)
   count = 0
   counter_fn = ->(name, started, finished, unique_id, payload) do
-    count += 1 unless payload[:name].in? %w[CACHE SCHEMA]
+    count += 1 unless %w[CACHE SCHEMA].include? payload[:name]
   end
   ActiveSupport::Notifications.subscribed(counter_fn, 'sql.active_record', &block)
   count

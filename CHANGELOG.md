@@ -1,5 +1,12 @@
 # Changelog
 
+### 6.0.0.alpha,beta,gamma
+* Dropped support for versions of Rails 3.2 and 4.0 (which are no longer supported).
+* Dropped support for Ruby 1.9 and JRuby 1.9 (which are no longer supported).
+* Added support for `.hash_tree` from `.parent` and `.children`. 
+  Addresses [PR146](https://github.com/mceachen/closure_tree/pull/146).
+  Thanks for reporting this and the breaking test, [Mike](https://github.com/mkralla11)!
+
 ### 5.2.0
 
 * [Eduardo Turiño](https://github.com/eturino) renamed `acts_as_tree` to `has_closure_tree`. We'll

@@ -2,6 +2,7 @@ require 'closure_tree/support_flags'
 require 'closure_tree/support_attributes'
 require 'closure_tree/numeric_order_support'
 require 'closure_tree/active_record_support'
+require 'closure_tree/hash_tree_support'
 require 'with_advisory_lock'
 
 # This class and mixins are an effort to reduce the namespace pollution to models that act_as_tree.
@@ -10,6 +11,7 @@ module ClosureTree
     include ClosureTree::SupportFlags
     include ClosureTree::SupportAttributes
     include ClosureTree::ActiveRecordSupport
+    include ClosureTree::HashTreeSupport
 
     attr_reader :model_class
     attr_reader :options
@@ -22,7 +24,7 @@ module ClosureTree
         :name_column => 'name',
         :with_advisory_lock => true
       }.merge(options)
-      raise IllegalArgumentException, "name_column can't be 'path'" if options[:name_column] == 'path'
+      raise ArgumentError, "name_column can't be 'path'" if options[:name_column] == 'path'
       if order_is_numeric?
         extend NumericOrderSupport.adapter_for_connection(connection)
       end
@@ -59,10 +61,6 @@ module ClosureTree
       ActiveRecord::Base.table_name_prefix + tablename + ActiveRecord::Base.table_name_suffix
     end
 
-    def quote(field)
-      connection.quote(field)
-    end
-
     def with_order_option(opts)
       if order_option?
         opts[:order] = [opts[:order], order_by].compact.join(",")
@@ -80,20 +78,12 @@ module ClosureTree
 
     # lambda-ize the order, but don't apply the default order_option
     def has_many_without_order_option(opts)
-      if ActiveRecord::VERSION::MAJOR > 3
         [lambda { order(opts[:order]) }, opts.except(:order)]
-      else
-        [opts]
-      end
     end
 
     def has_many_with_order_option(opts)
-      if ActiveRecord::VERSION::MAJOR > 3
-        order_options = [opts[:order], order_by].compact
-        [lambda { order(order_options) }, opts.except(:order)]
-      else
-        [with_order_option(opts)]
-      end
+      order_options = [opts[:order], order_by].compact
+      [lambda { order(order_options) }, opts.except(:order)]
     end
 
     def ids_from(scope)

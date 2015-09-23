@@ -26,8 +26,8 @@ closure_tree has some great features:
   * 2 SQL INSERTs on node creation
   * 3 SQL INSERT/UPDATEs on node reparenting
 * __Support for [concurrency](#concurrency)__ (using [with_advisory_lock](https://github.com/mceachen/with_advisory_lock))
-* __Support for Rails 3.2, 4.0, and 4.1__
-* __Support for Ruby 1.9, 2.1, and jRuby 1.6.13__
+* __Support for ActiveRecord 4.1, 4.2 and 5.0.alpha__
+* __Support for Ruby 2.2 and JRuby 9000__
 * Support for reparenting children (and all their descendants)
 * Support for [single-table inheritance (STI)](#sti) within the hierarchy
 * ```find_or_create_by_path``` for [building out heterogeneous hierarchies quickly and conveniently](#find_or_create_by_path)
@@ -55,7 +55,7 @@ for a description of different tree storage algorithms.
 
 ## Installation
 
-Note that closure_tree only supports Rails 3.2 and later, and has test coverage for MySQL, PostgreSQL, and SQLite.
+Note that closure_tree only supports ActiveRecord 4.1 and later, and has test coverage for MySQL, PostgreSQL, and SQLite.
 
 1.  Add `gem 'closure_tree'` to your Gemfile 
 
@@ -75,14 +75,14 @@ Note that closure_tree only supports Rails 3.2 and later, and has test coverage 
 
     Make sure you check out the [large number options](#available-options) that `has_closure_tree` accepts.
     
-    Make sure you add `has_closure_tree` **after** `attr_accessible` and
-    `self.table_name =` lines in your model.
+    **IMPORTANT: Make sure you add `has_closure_tree` _after_ `attr_accessible` and
+    `self.table_name =` lines in your model.**
 
     If you're already using other hierarchical gems, like `ancestry` or `acts_as_tree`, please refer
     to the [warning section](#warning)!
 
 4.  Add a migration to add a `parent_id` column to the hierarchical model.
-    You may want to also [add a column for deterministic ordering of children](#sort_order), but that's optional.
+    You may want to also [add a column for deterministic ordering of children](#deterministic-ordering), but that's optional.
 
     ```ruby
     class AddParentIdToTag < ActiveRecord::Migration
@@ -339,27 +339,6 @@ class WhereTag < Tag ; end
 class WhatTag < Tag ; end
 ```
 
-Please note that Rails (<= 3.2) doesn't handle polymorphic associations correctly if
-you use the ```:type``` attribute, so **this doesn't work**:
-
-```ruby
-# BAD: ActiveRecord ignores the :type attribute:
-root.children.create(name: "child", type: "WhenTag")
-```
-
-Instead, use either ```.add_child``` or ```children <<```:
-
-```ruby
-# GOOD!
-a = Tag.create!(name: "a")
-b = WhenTag.new(name: "b")
-a.children << b
-c = WhatTag.new(name: "c")
-b.add_child(c)
-```
-
-See [issue 43](https://github.com/mceachen/closure_tree/issues/43) for more information.
-
 ## Deterministic ordering
 
 By default, children will be ordered by your database engine, which may not be what you want.
@@ -501,7 +480,7 @@ the spec ```tag_spec.rb```:
       Tag.rebuild! # <- required if you use fixtures
     end
 ```
-`
+
 **However, if you're just starting with Rails, may I humbly suggest you adopt a factory library**,
 rather than using fixtures? [Lots of people have written about this already](https://www.google.com/search?q=fixtures+versus+factories).
 
@@ -559,10 +538,9 @@ end
 
 Closure tree is [tested under every valid combination](http://travis-ci.org/#!/mceachen/closure_tree) of
 
-* Ruby 1.9.3, 2.1.2 (and sometimes head)
-* Rubinius 2.2.1+ (and sometimes head)
-* jRuby 1.9mode (and sometimes head)
-* The latest Rails 3.2, 4.0, 4.1, 4.2 and master branches
+* Ruby 2.2 (and sometimes head)
+* jRuby 9000 (and sometimes head)
+* The latest ActiveRecord 4.1, 4.2, and master branch
 * Concurrency tests for MySQL and PostgreSQL. SQLite is tested in a single-threaded environment.
 
 Assuming you're using [rbenv](https://github.com/sstephenson/rbenv), you can use ```tests.sh``` to
@@ -574,7 +552,7 @@ See the [change log](https://github.com/mceachen/closure_tree/blob/master/CHANGE
 
 ## Thanks to
 
-* The more than 20 engineers around the world that have contributed their time and code to this gem
+* The more than 30 engineers around the world that have contributed their time and code to this gem
   (see the [changelog](https://github.com/mceachen/closure_tree/blob/master/CHANGELOG.md)!)
 * https://github.com/collectiveidea/awesome_nested_set
 * https://github.com/patshaughnessy/class_factory
