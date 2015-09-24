@@ -8,8 +8,8 @@ module ClosureTree
           INNER JOIN (
             SELECT descendant_id, MAX(generations) as depth
             FROM #{quoted_hierarchy_table_name}
-            INNER JOIN (#{self.all.to_sql}) AS outer_table
-              ON outer_table.#{primary_key} = #{quoted_hierarchy_table_name}.descendant_id
+            INNER JOIN (#{model_class.all.to_sql}) AS outer_table
+              ON outer_table.#{model_class.primary_key} = #{quoted_hierarchy_table_name}.descendant_id
             GROUP BY descendant_id
             #{having_clause}
           ) AS generation_depth
