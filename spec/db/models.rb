@@ -12,6 +12,20 @@ class Tag < ActiveRecord::Base
   end
 end
 
+class CaseInsensitiveTag < ActiveRecord::Base
+  has_closure_tree order: :name, dependent: :destroy, case_insensitive: true
+  before_destroy :add_destroyed_tag
+
+  def to_s
+    name
+  end
+
+  def add_destroyed_tag
+    # Proof for the tests that the destroy rather than the delete method was called:
+    DestroyedTag.create(:name => name)
+  end
+end
+
 class UUIDTag < ActiveRecord::Base
   self.primary_key = :uuid
   before_create :set_uuid

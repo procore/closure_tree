@@ -21,6 +21,25 @@ ActiveRecord::Schema.define(:version => 0) do
   add_foreign_key(:tag_hierarchies, :tags, :column => 'ancestor_id')
   add_foreign_key(:tag_hierarchies, :tags, :column => 'descendant_id')
 
+  create_table "case_insensitive_tags" do |t|
+    t.string "name"
+    t.string "title"
+    t.integer "parent_id"
+    t.integer "sort_order"
+    t.timestamps null: false
+  end
+
+  add_foreign_key(:case_insensitive_tags, :case_insensitive_tags, :column => 'parent_id')
+
+  create_table "case_insensitive_tag_hierarchies", :id => false do |t|
+    t.integer "ancestor_id", :null => false
+    t.integer "descendant_id", :null => false
+    t.integer "generations", :null => false
+  end
+
+  add_foreign_key(:case_insensitive_tag_hierarchies, :case_insensitive_tags, :column => 'ancestor_id')
+  add_foreign_key(:case_insensitive_tag_hierarchies, :case_insensitive_tags, :column => 'descendant_id')
+
   create_table "uuid_tags", :id => false do |t|
     t.string "uuid", :unique => true
     t.string "name"
