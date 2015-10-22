@@ -1,5 +1,7 @@
 source 'https://rubygems.org'
 
+gem 'with_advisory_lock', github: 'procore/with_advisory_lock'
+
 platforms :ruby, :rbx do
   gem 'mysql2'
   gem 'pg'
