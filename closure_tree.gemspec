@@ -17,7 +17,7 @@ Gem::Specification.new do |gem|
   gem.required_ruby_version = '>= 2.1.0'
 
   gem.add_runtime_dependency 'activerecord', '>= 4.1.0'
-  gem.add_runtime_dependency 'with_advisory_lock', '>= 3.0.0'
+  gem.add_runtime_dependency 'with_advisory_lock', '>= 3.0.1'
 
   gem.add_development_dependency 'rspec-instafail'
   gem.add_development_dependency 'rspec-rails', '~> 3.2.3'
