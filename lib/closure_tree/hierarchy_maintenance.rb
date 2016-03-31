@@ -110,8 +110,10 @@ module ClosureTree
       # Note that the hierarchy table will be truncated.
       def rebuild!
         _ct.with_advisory_lock do
-          hierarchy_class.delete_all # not destroy_all -- we just want a simple truncate.
-          roots.each { |n| n.send(:rebuild!) } # roots just uses the parent_id column, so this is safe.
+          roots.each do |n|
+            n.delete_hierarchy_references # delete hierarchies scoped to the caller
+            n.send(:rebuild!) # roots just uses the parent_id column, so this is safe.
+          end
         end
         nil
       end
