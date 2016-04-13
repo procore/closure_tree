@@ -8,8 +8,10 @@ describe ClosureTree::HierarchyMaintenance do
       end
       hierarchy_count = MetalHierarchy.count
       expect(hierarchy_count).to be > (20*2)-1 # shallowest-possible case, where all children use the first root
-      MetalHierarchy.delete_all
-      Metal.rebuild!
+      Metal.roots.each do |n|
+        n.delete_hierarchy_references # delete hierarchies scoped to the caller
+        n.send(:rebuild!) # roots just uses the parent_id column, so this is safe.
+      end
       expect(MetalHierarchy.count).to eq(hierarchy_count)
     end
   end
