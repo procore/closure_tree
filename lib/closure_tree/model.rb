@@ -31,20 +31,13 @@ module ClosureTree
         foreign_key: 'descendant_id',
         order: order_by_generations)
 
-      has_many :self_and_ancestors, *_ct.has_many_without_order_option(
-        through: :ancestor_hierarchies,
-        source: :ancestor,
-        order: order_by_generations)
-
       has_many :descendant_hierarchies, *_ct.has_many_without_order_option(
         class_name: _ct.hierarchy_class_name,
         foreign_key: 'ancestor_id',
         order: order_by_generations)
 
-      has_many :self_and_descendants, *_ct.has_many_with_order_option(
-        through: :descendant_hierarchies,
-        source: :descendant,
-        order: order_by_generations)
+      has_many :self_and_descendants, through: :descendant_hierarchies, source: :descendant
+      has_many :self_and_ancestors, through: :ancestor_hierarchies, source: :ancestor
     end
 
     # Delegate to the Support instance on the class:
