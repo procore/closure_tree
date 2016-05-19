@@ -27,7 +27,7 @@ closure_tree has some great features:
   * 3 SQL INSERT/UPDATEs on node reparenting
 * __Support for [concurrency](#concurrency)__ (using [with_advisory_lock](https://github.com/mceachen/with_advisory_lock))
 * __Support for ActiveRecord 4.1, 4.2 and 5.0.alpha__
-* __Support for Ruby 2.2 and JRuby 9000__
+* __Support for Ruby 2.0, 2.1, 2.2 and JRuby 9000__
 * Support for reparenting children (and all their descendants)
 * Support for [single-table inheritance (STI)](#sti) within the hierarchy
 * ```find_or_create_by_path``` for [building out heterogeneous hierarchies quickly and conveniently](#find_or_create_by_path)
@@ -145,11 +145,17 @@ child3 = Tag.new(name: 'Third Child')
 parent.add_child child3
 ```
 
+Or by setting the parent on the child :
+
+```ruby
+Tag.create(name: 'Fourth Child', parent: parent)
+```
+
 Then:
 
 ```ruby
 grandparent.self_and_descendants.collect(&:name)
-=> ["Grandparent", "Parent", "First Child", "Second Child", "Third Child"]
+=> ["Grandparent", "Parent", "First Child", "Second Child", "Third Child", "Fourth Child"]
 
 child1.ancestry_path
 => ["Grandparent", "Parent", "First Child"]
@@ -538,6 +544,7 @@ end
 
 Closure tree is [tested under every valid combination](http://travis-ci.org/#!/mceachen/closure_tree) of
 
+* Ruby 2.0 (and sometimes head)
 * Ruby 2.2 (and sometimes head)
 * jRuby 9000 (and sometimes head)
 * The latest ActiveRecord 4.1, 4.2, and master branch
