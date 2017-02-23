@@ -9,7 +9,8 @@ module ClosureTree
         :name_column,
         :order,
         :touch,
-        :with_advisory_lock
+        :with_advisory_lock,
+        :case_insensitive
       )
 
       class_attribute :_ct
@@ -23,7 +24,13 @@ module ClosureTree
       # tests fail if you include Model before HierarchyMaintenance wtf
       include ClosureTree::HierarchyMaintenance
       include ClosureTree::Model
-      include ClosureTree::Finders
+
+      if options[:case_insensitive]
+        include ClosureTree::CaseInsensitiveFinders
+      else
+        include ClosureTree::Finders
+      end
+
       include ClosureTree::HashTree
       include ClosureTree::Digraphs
 

@@ -8,6 +8,7 @@ module ClosureTree
   autoload :HierarchyMaintenance
   autoload :Model
   autoload :Finders
+  autoload :CaseInsensitiveFinders
   autoload :HashTree
   autoload :Digraphs
   autoload :DeterministicOrdering
