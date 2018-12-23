@@ -20,7 +20,7 @@ module ClosureTree
     end
 
     def _ct_validate
-      if !@_ct_skip_cycle_detection &&
+      if !(defined? @_ct_skip_cycle_detection) &&
         !new_record? && # don't validate for cycles if we're a new record
         changes[_ct.parent_column_name] && # don't validate for cycles if we didn't change our parent
         parent.present? && # don't validate if we're root
@@ -35,10 +35,13 @@ module ClosureTree
     end
 
     def _ct_after_save
-      if changes[_ct.parent_column_name] || @was_new_record
-        rebuild! unless @_ct_skip_hierarchy_maintenance
+      as_5_1 = ActiveSupport.version >= Gem::Version.new('5.1.0')
+      changes_method = as_5_1 ? :saved_changes : :changes
+
+      if public_send(changes_method)[_ct.parent_column_name] || @was_new_record
+        rebuild!
       end
-      if changes[_ct.parent_column_name] && !@was_new_record
+      if public_send(changes_method)[_ct.parent_column_name] && !@was_new_record
         # Resetting the ancestral collections addresses
         # https://github.com/mceachen/closure_tree/issues/68
         ancestor_hierarchies.reload
@@ -53,7 +56,7 @@ module ClosureTree
       _ct.with_advisory_lock do
         delete_hierarchy_references
         if _ct.options[:dependent] == :nullify
-          self.class.find(self.id).children.each { |c| c.rebuild! }
+          self.class.find(self.id).children.find_each { |c| c.rebuild! }
         end
       end
       true # don't prevent destruction
@@ -61,7 +64,7 @@ module ClosureTree
 
     def rebuild!(called_by_rebuild = false)
       _ct.with_advisory_lock do
-        delete_hierarchy_references unless @was_new_record
+        delete_hierarchy_references unless (defined? @was_new_record) && @was_new_record
         hierarchy_class.create!(:ancestor => self, :descendant => self, :generations => 0)
         unless root?
           _ct.connection.execute <<-SQL.strip_heredoc
@@ -79,7 +82,7 @@ module ClosureTree
           _ct_reorder_siblings if !called_by_rebuild
         end
 
-        children.each { |c| c.rebuild!(true) }
+        children.find_each { |c| c.rebuild!(true) }
 
         _ct_reorder_children if _ct.order_is_numeric? && children.present?
       end
@@ -100,7 +103,8 @@ module ClosureTree
             FROM (SELECT descendant_id
               FROM #{_ct.quoted_hierarchy_table_name}
               WHERE ancestor_id = #{_ct.quote(id)}
-            ) AS x )
+                 OR descendant_id = #{_ct.quote(id)}
+            ) #{ _ct.t_alias_keyword } x )
         SQL
       end
     end

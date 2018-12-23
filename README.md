@@ -1,14 +1,16 @@
 # Closure Tree
 
+__Important: please [vote on the future of ClosureTree](https://github.com/ClosureTree/closure_tree/issues/277)!__
+
 ### Closure_tree lets your ActiveRecord models act as nodes in a [tree data structure](http://en.wikipedia.org/wiki/Tree_%28data_structure%29)
 
-Common applications include modeling hierarchical data, like tags, page graphs in CMSes,
+Common applications include modeling hierarchical data, like tags, threaded comments, page graphs in CMSes,
 and tracking user referrals.
 
-[![Build Status](https://secure.travis-ci.org/mceachen/closure_tree.png?branch=master)](http://travis-ci.org/mceachen/closure_tree)
-[![Gem Version](https://badge.fury.io/rb/closure_tree.png)](http://rubygems.org/gems/closure_tree)
-[![Code Climate](https://codeclimate.com/github/mceachen/closure_tree.png)](https://codeclimate.com/github/mceachen/closure_tree)
-[![Dependency Status](https://gemnasium.com/mceachen/closure_tree.png)](https://gemnasium.com/mceachen/closure_tree)
+[![Join the chat at https://gitter.im/closure_tree/Lobby](https://badges.gitter.im/closure_tree/Lobby.svg)](https://gitter.im/closure_tree/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Build Status](https://api.travis-ci.org/ClosureTree/closure_tree.svg?branch=master)](http://travis-ci.org/ClosureTree/closure_tree)
+[![Gem Version](https://badge.fury.io/rb/closure_tree.svg)](https://badge.fury.io/rb/closure_tree)
+[![Dependency Status](https://gemnasium.com/badges/github.com/ClosureTree/closure_tree.svg)](https://gemnasium.com/github.com/ClosureTree/closure_tree)
 
 Dramatically more performant than
 [ancestry](https://github.com/stefankroes/ancestry) and
@@ -25,9 +27,8 @@ closure_tree has some great features:
 * __Best-in-class mutation performance__:
   * 2 SQL INSERTs on node creation
   * 3 SQL INSERT/UPDATEs on node reparenting
-* __Support for [concurrency](#concurrency)__ (using [with_advisory_lock](https://github.com/mceachen/with_advisory_lock))
-* __Support for ActiveRecord 4.1, 4.2 and 5.0.alpha__
-* __Support for Ruby 2.2 and JRuby 9000__
+* __Support for [concurrency](#concurrency)__ (using [with_advisory_lock](https://github.com/ClosureTree/with_advisory_lock))
+* __Tested against ActiveRecord 4.2, 5.0, and 5.1, with  Ruby 2.2 and 2.3__
 * Support for reparenting children (and all their descendants)
 * Support for [single-table inheritance (STI)](#sti) within the hierarchy
 * ```find_or_create_by_path``` for [building out heterogeneous hierarchies quickly and conveniently](#find_or_create_by_path)
@@ -55,9 +56,9 @@ for a description of different tree storage algorithms.
 
 ## Installation
 
-Note that closure_tree only supports ActiveRecord 4.1 and later, and has test coverage for MySQL, PostgreSQL, and SQLite.
+Note that closure_tree only supports ActiveRecord 4.2 and later, and has test coverage for MySQL, PostgreSQL, and SQLite.
 
-1.  Add `gem 'closure_tree'` to your Gemfile 
+1.  Add `gem 'closure_tree'` to your Gemfile
 
 2.  Run `bundle install`
 
@@ -73,8 +74,8 @@ Note that closure_tree only supports ActiveRecord 4.1 and later, and has test co
     end
     ```
 
-    Make sure you check out the [large number options](#available-options) that `has_closure_tree` accepts.
-    
+    Make sure you check out the [large number of options](#available-options) that `has_closure_tree` accepts.
+
     **IMPORTANT: Make sure you add `has_closure_tree` _after_ `attr_accessible` and
     `self.table_name =` lines in your model.**
 
@@ -87,7 +88,7 @@ Note that closure_tree only supports ActiveRecord 4.1 and later, and has test co
     ```ruby
     class AddParentIdToTag < ActiveRecord::Migration
       def change
-        add_column :tag, :parent_id, :integer
+        add_column :tags, :parent_id, :integer
       end
     end
     ```
@@ -109,11 +110,14 @@ Note that closure_tree only supports ActiveRecord 4.1 and later, and has test co
 
     If you're starting from scratch you don't need to call `rebuild!`.
 
+NOTE: Run `rails g closure_tree:config` to create an initializer with extra
+      configurations. (Optional)
+
 ## Warning
 
-As stated above, using multiple hierarchy gems (like `ancestry` or `nested set`) on the same model 
+As stated above, using multiple hierarchy gems (like `ancestry` or `nested set`) on the same model
 will most likely result in pain, suffering, hair loss, tooth decay, heel-related ailments, and gingivitis.
-Assume things will break. 
+Assume things will break.
 
 ## Usage
 
@@ -145,11 +149,17 @@ child3 = Tag.new(name: 'Third Child')
 parent.add_child child3
 ```
 
+Or by setting the parent on the child :
+
+```ruby
+Tag.create(name: 'Fourth Child', parent: parent)
+```
+
 Then:
 
 ```ruby
 grandparent.self_and_descendants.collect(&:name)
-=> ["Grandparent", "Parent", "First Child", "Second Child", "Third Child"]
+=> ["Grandparent", "Parent", "First Child", "Second Child", "Third Child", "Fourth Child"]
 
 child1.ancestry_path
 => ["Grandparent", "Parent", "First Child"]
@@ -159,7 +169,7 @@ child1.ancestry_path
 
 You can `find` as well as `find_or_create` by "ancestry paths".
 
-If you provide an array of strings to these methods, they reference the `name` column in your 
+If you provide an array of strings to these methods, they reference the `name` column in your
 model, which can be overridden with the `:name_column` option provided to `has_closure_tree`.
 
 ```ruby
@@ -244,7 +254,46 @@ b.hash_tree(:limit_depth => 2)
 Without this option, ```hash_tree``` will load the entire contents of that table into RAM. Your
 server may not be happy trying to do this.
 
-HT: [ancestry](https://github.com/stefankroes/ancestry#arrangement) and [elhoyos](https://github.com/mceachen/closure_tree/issues/11)
+HT: [ancestry](https://github.com/stefankroes/ancestry#arrangement) and [elhoyos](https://github.com/ClosureTree/closure_tree/issues/11)
+
+### Eager loading
+
+Since most of closure_tree's methods (e.g. `children`) return regular `ActiveRecord` scopes, you can use the `includes` method for eager loading, e.g.
+
+```ruby
+comment.children.includes(:author)
+```
+
+However, note that the above approach only eager loads the requested associations for the immediate children of `comment`. If you want to walk through the entire tree, you may still end up making many queries and loading duplicate copies of objects.
+
+In some cases, a viable alternative is the following:
+
+```ruby
+comment.self_and_descendants.includes(:author)
+```
+
+This would load authors for `comment` and all its descendants in a constant number of queries. However, the return value is an array of `Comment`s, and the tree structure is thus lost, which makes it difficult to walk the tree using elegant recursive algorithms.
+
+A third option is to use `has_closure_tree_root` on the model that is composed by the closure_tree model (e.g. a `Post` may be composed by a tree of `Comment`s). So in `post.rb`, you would do:
+
+```ruby
+# app/models/post.rb
+has_closure_tree_root :root_comment
+```
+
+This gives you a plain `has_one` association (`root_comment`) to the root `Comment` (i.e. that with null `parent_id`).
+
+It also gives you a method called `root_comment_including_tree`, which you can invoke as follows:
+
+```ruby
+a_post.root_comment_including_tree(:author)
+```
+
+The result of this call will be the root `Comment` with all descendants _and_ associations loaded in a constant number of queries. Inverse associations are also setup on all nodes, so as you walk the tree, calling `children` or `parent` on any node will _not_ trigger any further queries and no duplicate copies of objects are loaded into memory.
+
+The class and foreign key of `root_comment` are assumed to be `Comment` and `post_id`, respectively. These can be overridden in the usual way.
+
+The same caveat stated above with `hash_tree` also applies here: this method will load the entire tree into memory. If the tree is very large, this may be a bad idea, in which case using the eager loading methods above may be preferred.
 
 ### Graph visualization
 
@@ -256,13 +305,13 @@ File.open("example.dot", "w") { |f| f.write(Tag.root.to_dot_digraph) }
 ```
 Then, in a shell, ```dot -Tpng example.dot > example.png```, which produces:
 
-![Example tree](https://raw.github.com/mceachen/closure_tree/master/img/example.png)
+![Example tree](https://raw.github.com/ClosureTree/closure_tree/master/img/example.png)
 
 If you want to customize the label value, override the ```#to_digraph_label``` instance method in your model.
 
 Just for kicks, this is the test tree I used for proving that preordered tree traversal was correct:
 
-![Preordered test tree](https://raw.github.com/mceachen/closure_tree/master/img/preorder.png)
+![Preordered test tree](https://raw.github.com/ClosureTree/closure_tree/master/img/preorder.png)
 
 ### Available options
 
@@ -275,6 +324,7 @@ When you include ```has_closure_tree``` in your model, you can provide a hash to
     * ```:nullify``` will simply set the parent column to null. Each child node will be considered a "root" node. This is the default.
     * ```:delete_all``` will delete all descendant nodes (which circumvents the destroy hooks)
     * ```:destroy``` will destroy all descendant nodes (which runs the destroy hooks on each child node)
+    * ```nil``` does nothing with descendant nodes
 * ```:name_column``` used by #```find_or_create_by_path```, #```find_by_path```, and ```ancestry_path``` instance methods. This is primarily useful if the model only has one required field (like a "tag").
 * ```:order``` used to set up [deterministic ordering](#deterministic-ordering)
 * ```:touch``` delegates to the `belongs_to` annotation for the parent, so `touch`ing cascades to all children (the performance of this for deep trees isn't currently optimal).
@@ -296,15 +346,19 @@ When you include ```has_closure_tree``` in your model, you can provide a hash to
 
 * ```tag.root``` returns the root for this node
 * ```tag.root?``` returns true if this is a root node
+* ```tag.root_of?(node)``` returns true if current node is root of another one
 * ```tag.child?``` returns true if this is a child node. It has a parent.
 * ```tag.leaf?``` returns true if this is a leaf node. It has no children.
 * ```tag.leaves``` is scoped to all leaf nodes in self_and_descendants.
 * ```tag.depth``` returns the depth, or "generation", for this node in the tree. A root node will have a value of 0.
 * ```tag.parent``` returns the node's immediate parent. Root nodes will return nil.
+* ```tag.parent_of?(node)``` returns true if current node is parent of another one
 * ```tag.children``` is a ```has_many``` of immediate children (just those nodes whose parent is the current node).
 * ```tag.child_ids``` is an array of the IDs of the children.
+* ```tag.child_of?(node)``` returns true if current node is child of another one
 * ```tag.ancestors``` is a ordered scope of [ parent, grandparent, great grandparent, … ]. Note that the size of this array will always equal ```tag.depth```.
 * ```tag.ancestor_ids``` is an array of the IDs of the ancestors.
+* ```tag.ancestor_of?(node)``` returns true if current node is ancestor of another one
 * ```tag.self_and_ancestors``` returns a scope containing self, parent, grandparent, great grandparent, etc.
 * ```tag.self_and_ancestors_ids``` returns IDs containing self, parent, grandparent, great grandparent, etc.
 * ```tag.siblings``` returns a scope containing all nodes with the same parent as ```tag```, excluding self.
@@ -312,8 +366,10 @@ When you include ```has_closure_tree``` in your model, you can provide a hash to
 * ```tag.self_and_siblings``` returns a scope containing all nodes with the same parent as ```tag```, including self.
 * ```tag.descendants``` returns a scope of all children, childrens' children, etc., excluding self ordered by depth.
 * ```tag.descendant_ids``` returns an array of the IDs of the descendants.
+* ```tag.descendant_of?(node)``` returns true if current node is descendant of another one
 * ```tag.self_and_descendants``` returns a scope of self, all children, childrens' children, etc., ordered by depth.
 * ```tag.self_and_descendant_ids``` returns IDs of self, all children, childrens' children, etc., ordered by depth.
+* ```tag.family_of?``` returns true if current node and another one have a same root.
 * ```tag.hash_tree``` returns an [ordered, nested hash](#nested-hashes) that can be depth-limited.
 * ```tag.find_by_path(path)``` returns the node whose name path *from ```tag```* is ```path```. See (#find_or_create_by_path).
 * ```tag.find_or_create_by_path(path)``` returns the node whose name path *from ```tag```* is ```path```, and will create the node if it doesn't exist already.See (#find_or_create_by_path).
@@ -339,6 +395,18 @@ class WhereTag < Tag ; end
 class WhatTag < Tag ; end
 ```
 
+Note that if you call `rebuild!` on any of the subclasses, the complete Tag hierarchy will be emptied, thus taking the hiearchies of all other subclasses with it (issue #275). However, only the hierarchies for the class `rebuild!` was called on will be rebuilt, leaving the other subclasses without hierarchy entries.
+
+You can work around that by overloading the `rebuild!` class method in all your STI subclasses and call the super classes `rebuild!` method:
+```ruby
+class WhatTag < Tag
+  def self.rebuild!
+    Tag.rebuild!
+  end
+end
+```
+This way, the complete hierarchy including all subclasses will be rebuilt.
+
 ## Deterministic ordering
 
 By default, children will be ordered by your database engine, which may not be what you want.
@@ -361,7 +429,7 @@ and in your model:
 
 ```ruby
 class OrderedTag < ActiveRecord::Base
-  has_closure_tree order: 'sort_order'
+  has_closure_tree order: 'sort_order', numeric_order: true
 end
 ```
 
@@ -394,12 +462,12 @@ If your ```order``` column is an integer attribute, you'll also have these:
 * ```node1.prepend_sibling(node2)``` which will
   1. set ```node2``` to the same parent as ```node1```,
   2. set ```node2```'s order column to 1 less than ```node1```'s value, and
-  3. decrement the order_column of all children of node1's parents whose order_column is <>>= node2's new value by 1.
+  3. increment the order_column of all children of node1's parents whose order_column is > node2's new value by 1.
 
 * ```node1.append_sibling(node2)``` which will
   1. set ```node2``` to the same parent as ```node1```,
   2. set ```node2```'s order column to 1 more than ```node1```'s value, and
-  3. increment the order_column of all children of node1's parents whose order_column is >= node2's new value by 1.
+  3. increment the order_column of all children of node1's parents whose order_column is > node2's new value by 1.
 
 ```ruby
 
@@ -427,6 +495,25 @@ root.reload.children.pluck(:name)
 => ["b", "c", "a"]
 ```
 
+### Ordering Roots
+
+With numeric ordering, root nodes are, by default, assigned order values globally across the whole database
+table. So for instance if you have 5 nodes with no parent, they will be ordered 0 through 4 by default.
+If your model represents many separate trees and you have a lot of records, this can cause performance
+problems, and doesn't really make much sense.
+
+You can disable this default behavior by passing `dont_order_roots: true` as an option to your delcaration:
+
+```
+has_closure_tree order: 'sort_order', numeric_order: true, dont_order_roots: true
+```
+
+In this case, calling `prepend_sibling` and `append_sibling` on a root node or calling
+`roots_and_descendants_preordered` on the model will raise a `RootOrderingDisabledError`.
+
+The `dont_order_roots` option will be ignored unless `numeric_order` is set to true.
+
+
 ## Concurrency
 
 Several methods, especially ```#rebuild``` and ```#find_or_create_by_path```, cannot run concurrently correctly.
@@ -434,7 +521,7 @@ Several methods, especially ```#rebuild``` and ```#find_or_create_by_path```, ca
 
 Database row-level locks work correctly with PostgreSQL, but MySQL's row-level locking is broken, and
 erroneously reports deadlocks where there are none. To work around this, and have a consistent implementation
-for both MySQL and PostgreSQL, [with_advisory_lock](https://github.com/mceachen/with_advisory_lock)
+for both MySQL and PostgreSQL, [with_advisory_lock](https://github.com/ClosureTree/with_advisory_lock)
 is used automatically to ensure correctness.
 
 If you are already managing concurrency elsewhere in your application, and want to disable the use
@@ -449,6 +536,15 @@ end
 Note that you *will eventually have data corruption* if you disable advisory locks, write to your
 database with multiple threads, and don't provide an alternative mutex.
 
+## I18n
+
+You can customize error messages using [I18n](http://guides.rubyonrails.org/i18n.html):
+
+```yaml
+en-US:
+  closure_tree:
+    loop_error: Your descendant cannot be your parent!
+```
 
 ## FAQ
 
@@ -458,7 +554,16 @@ Yup! [Ilya Bodrov](https://github.com/bodrovis) wrote [Nested Comments with Rail
 
 ### Does this work well with ```#default_scope```?
 
-No. Please see [issue 86](https://github.com/mceachen/closure_tree/issues/86) for details.
+**No.** Please see [issue 86](https://github.com/ClosureTree/closure_tree/issues/86) for details.
+
+### Can I update parentage with `update_attribute`?
+
+**No.** `update_attribute` skips the validation hook that is required for maintaining the
+hierarchy table.
+
+### Can I assign a parent to multiple children with  ```#update_all```?
+
+**No.** Please see [issue 197](https://github.com/ClosureTree/closure_tree/issues/197) for details.
 
 ### Does this gem support multiple parents?
 
@@ -503,6 +608,28 @@ after do
 end
 ```
 
+### `bundle install` says `Gem::Ext::BuildError: ERROR: Failed to build gem native extension`
+
+When building from source, the `mysql2`, `pg`, and `sqlite` gems need their native client libraries
+installed on your system. Note that this error isn't specific to ClosureTree.
+
+On Ubuntu/Debian systems, run:
+
+```
+sudo apt-get install libpq-dev libsqlite3-dev libmysqlclient-dev
+bundle install
+```
+
+### Object destroy fails with MySQL v5.7+
+
+A bug was introduced in MySQL's query optimizer. [See the workaround here](https://github.com/ClosureTree/closure_tree/issues/206).
+
+### Hierarchy maintenance errors from MySQL v5.7.9-v5.7.10
+
+Upgrade to MySQL 5.7.12 or later if you see [this issue](https://github.com/ClosureTree/closure_tree/issues/190):
+
+    Mysql2::Error: You can't specify target table '*_hierarchies' for update in FROM clause
+
 ## Testing with Closure Tree
 
 Closure tree comes with some RSpec2/3 matchers which you may use for your tests:
@@ -536,24 +663,23 @@ end
 
 ## Testing
 
-Closure tree is [tested under every valid combination](http://travis-ci.org/#!/mceachen/closure_tree) of
+Closure tree is [tested under every valid combination](http://travis-ci.org/#!/ClosureTree/closure_tree) of
 
-* Ruby 2.2 (and sometimes head)
-* jRuby 9000 (and sometimes head)
-* The latest ActiveRecord 4.1, 4.2, and master branch
-* Concurrency tests for MySQL and PostgreSQL. SQLite is tested in a single-threaded environment.
+* Ruby 2.2, 2.3
+* ActiveRecord 4.2, 5.0, and 5.1
+* PostgreSQL, MySQL, and SQLite. Concurrency tests are only run with MySQL and PostgreSQL.
 
 Assuming you're using [rbenv](https://github.com/sstephenson/rbenv), you can use ```tests.sh``` to
 run the test matrix locally.
 
 ## Change log
 
-See the [change log](https://github.com/mceachen/closure_tree/blob/master/CHANGELOG.md).
+See the [change log](https://github.com/ClosureTree/closure_tree/blob/master/CHANGELOG.md).
 
 ## Thanks to
 
-* The more than 30 engineers around the world that have contributed their time and code to this gem
-  (see the [changelog](https://github.com/mceachen/closure_tree/blob/master/CHANGELOG.md)!)
+* The 45+ engineers around the world that have contributed their time and code to this gem
+  (see the [changelog](https://github.com/ClosureTree/closure_tree/blob/master/CHANGELOG.md)!)
 * https://github.com/collectiveidea/awesome_nested_set
 * https://github.com/patshaughnessy/class_factory
 * JetBrains, which provides an [open-source license](http://www.jetbrains.com/ruby/buy/buy.jsp#openSource) to

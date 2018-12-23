@@ -72,6 +72,42 @@ shared_examples_for Tag do
         expect(tag_class.leaves).to eq([@tag])
       end
 
+      it 'should not be found by passing find_by_path an array of blank strings' do
+        expect(tag_class.find_by_path([''])).to be_nil
+      end
+
+      it 'should not be found by passing find_by_path an empty array' do
+        expect(tag_class.find_by_path([])).to be_nil
+      end
+
+      it 'should not be found by passing find_by_path nil' do
+        expect(tag_class.find_by_path(nil)).to be_nil
+      end
+
+      it 'should not be found by passing find_by_path an empty string' do
+        expect(tag_class.find_by_path('')).to be_nil
+      end
+
+      it 'should not be found by passing find_by_path an array of nils' do
+        expect(tag_class.find_by_path([nil])).to be_nil
+      end
+
+      it 'should not be found by passing find_by_path an array with an additional blank string' do
+        expect(tag_class.find_by_path([@tag.name, ''])).to be_nil
+      end
+
+      it 'should not be found by passing find_by_path an array with an additional nil' do
+        expect(tag_class.find_by_path([@tag.name, nil])).to be_nil
+      end
+
+      it 'should be found by passing find_by_path an array with its name' do
+        expect(tag_class.find_by_path([@tag.name])).to eq @tag
+      end
+
+      it 'should be found by passing find_by_path its name' do
+        expect(tag_class.find_by_path(@tag.name)).to eq @tag
+      end
+
       context 'with child' do
         before do
           @child = tag_class.create!(name: 'tag 2')
@@ -378,6 +414,35 @@ shared_examples_for Tag do
         expect(a1c).not_to eq(a2c)
         expect(tag_class.where(:name => 'C').to_a).to match_array([a1c, a2c])
         expect(tag_class.with_ancestor(a1c.parent.parent).where(:name => 'C').to_a).to eq([a1c])
+      end
+    end
+
+    context 'with_descendant' do
+      it 'works with no rows' do
+        expect(tag_class.with_descendant.to_a).to be_empty
+      end
+
+      it 'finds only parents' do
+        c = tag_class.find_or_create_by_path %w(A B C)
+        a, b = c.parent.parent, c.parent
+        spurious_tags = tag_class.find_or_create_by_path %w(D E)
+        expect(tag_class.with_descendant(c).to_a).to eq([a, b])
+      end
+
+      it 'limits subsequent where clauses' do
+        ac1 = tag_class.create(name: 'A')
+        ac2 = tag_class.create(name: 'A')
+
+        c1 = tag_class.find_or_create_by_path %w(B C1)
+        ac1.children << c1.parent
+
+        c2 = tag_class.find_or_create_by_path %w(B C2)
+        ac2.children << c2.parent
+
+        # different paths!
+        expect(ac1).not_to eq(ac2)
+        expect(tag_class.where(:name => 'A').to_a).to match_array([ac1, ac2])
+        expect(tag_class.with_descendant(c1).where(:name => 'A').to_a).to eq([ac1])
       end
     end
 

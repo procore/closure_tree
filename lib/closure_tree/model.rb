@@ -5,13 +5,15 @@ module ClosureTree
     extend ActiveSupport::Concern
 
     included do
-      belongs_to :parent,
-                 class_name: _ct.model_class.to_s,
-                 foreign_key: _ct.parent_column_name,
-                 inverse_of: :children,
-                 touch: _ct.options[:touch]
 
-      order_by_generations = "#{_ct.quoted_hierarchy_table_name}.generations asc"
+      belongs_to :parent, nil, *_ct.belongs_to_with_optional_option(
+        class_name: _ct.model_class.to_s,
+        foreign_key: _ct.parent_column_name,
+        inverse_of: :children,
+        touch: _ct.options[:touch],
+        optional: true)
+
+      order_by_generations = -> { Arel.sql("#{_ct.quoted_hierarchy_table_name}.generations ASC") }
 
       has_many :children, *_ct.has_many_with_order_option(
         class_name: _ct.model_class.to_s,
@@ -130,6 +132,36 @@ module ClosureTree
 
     def sibling_ids
       _ct.ids_from(siblings)
+    end
+
+    # node's parent is this record
+    def parent_of?(node)
+      self == node.parent
+    end
+
+    # node's root is this record
+    def root_of?(node)
+      self == node.root
+    end
+
+    # node's ancestors include this record
+    def ancestor_of?(node)
+      node.ancestors.include? self
+    end
+
+    # node is record's ancestor
+    def descendant_of?(node)
+      self.ancestors.include? node
+    end
+
+    # node is record's parent
+    def child_of?(node)
+      self.parent == node
+    end
+
+    # node and record have a same root
+    def family_of?(node)
+      self.root == node.root
     end
 
     # Alias for appending to the children collection.

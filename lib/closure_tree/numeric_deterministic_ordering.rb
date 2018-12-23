@@ -10,8 +10,13 @@ module ClosureTree
     end
 
     def _ct_reorder_prior_siblings_if_parent_changed
-      if attribute_changed?(_ct.parent_column_name) && !@was_new_record
-        was_parent_id = attribute_was(_ct.parent_column_name)
+      as_5_1 = ActiveSupport.version >= Gem::Version.new('5.1.0')
+      change_method = as_5_1 ? :saved_change_to_attribute? : :attribute_changed?
+
+      if public_send(change_method, _ct.parent_column_name) && !@was_new_record
+        attribute_method = as_5_1 ? :attribute_before_last_save : :attribute_was
+
+        was_parent_id = public_send(attribute_method, _ct.parent_column_name)
         _ct.reorder_with_parent_id(was_parent_id)
       end
     end
@@ -60,10 +65,15 @@ module ClosureTree
         node_score = "(1 + anc.#{_ct.quoted_order_column(false)}) * " +
           "power(#{h['total_descendants']}, #{h['max_depth'].to_i + 1} - #{depth_column})"
 
-        "sum(#{node_score})"
+        # We want the NULLs to be first in case we are not ordering roots and they have NULL order.
+        Arel.sql("SUM(#{node_score}) IS NULL DESC, SUM(#{node_score})")
       end
 
       def roots_and_descendants_preordered
+        if _ct.dont_order_roots
+          raise ClosureTree::RootOrderingDisabledError.new("Root ordering is disabled on this model")
+        end
+
         join_sql = <<-SQL.strip_heredoc
           JOIN #{_ct.quoted_hierarchy_table_name} anc_hier
             ON anc_hier.descendant_id = #{_ct.quoted_table_name}.#{_ct.quoted_id_column_name}
@@ -72,8 +82,8 @@ module ClosureTree
           JOIN (
             SELECT descendant_id, max(generations) AS max_depth
             FROM #{_ct.quoted_hierarchy_table_name}
-            GROUP BY 1
-          ) AS depths ON depths.descendant_id = anc.#{_ct.quoted_id_column_name}
+            GROUP BY descendant_id
+          ) #{ _ct.t_alias_keyword } depths ON depths.descendant_id = anc.#{_ct.quoted_id_column_name}
         SQL
         joins(join_sql)
           .group("#{_ct.quoted_table_name}.#{_ct.quoted_id_column_name}")
@@ -89,9 +99,12 @@ module ClosureTree
       child_node.order_value = -1
       child_node.parent = self
       child_node._ct_skip_sort_order_maintenance!
-      child_node.save
-      _ct_reorder_children
-      child_node.reload
+      if child_node.save
+        _ct_reorder_children
+        child_node.reload
+      else
+        child_node
+      end
     end
 
     def append_sibling(sibling_node)
@@ -104,6 +117,10 @@ module ClosureTree
 
     def add_sibling(sibling, add_after = true)
       fail "can't add self as sibling" if self == sibling
+
+      if _ct.dont_order_roots && parent.nil?
+        raise ClosureTree::RootOrderingDisabledError.new("Root ordering is disabled on this model")
+      end
 
       # Make sure self isn't dirty, because we're going to call reload:
       save

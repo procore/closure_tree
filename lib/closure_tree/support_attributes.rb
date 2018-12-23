@@ -1,12 +1,11 @@
 require 'forwardable'
 module ClosureTree
   module SupportAttributes
-
     extend Forwardable
     def_delegators :model_class, :connection, :transaction, :table_name, :base_class, :inheritance_column, :column_names
 
     def advisory_lock_name
-      "ClosureTree::#{base_class.name}"
+      Digest::SHA1.hexdigest("ClosureTree::#{base_class.name}")[0..32]
     end
 
     def quoted_table_name
@@ -76,6 +75,10 @@ module ClosureTree
       options[:order]
     end
 
+    def dont_order_roots
+      options[:dont_order_roots] || false
+    end
+
     def nulls_last_order_by
       "-#{quoted_order_column} #{order_by_order(reverse = true)}"
     end
@@ -110,6 +113,11 @@ module ClosureTree
       require_order_column
       prefix = include_table_name ? "#{quoted_table_name}." : ""
       "#{prefix}#{connection.quote_column_name(order_column)}"
+    end
+
+    # table_name alias keyword , like "AS". When used on table name alias, Oracle Database don't support used 'AS'
+    def t_alias_keyword
+      (ActiveRecord::Base.connection.adapter_name.to_sym == :OracleEnhanced) ? "" : "AS"
     end
   end
 end

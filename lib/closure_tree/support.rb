@@ -22,7 +22,8 @@ module ClosureTree
         :parent_column_name => 'parent_id',
         :dependent => :nullify, # or :destroy or :delete_all -- see the README
         :name_column => 'name',
-        :with_advisory_lock => true
+        :with_advisory_lock => true,
+        :numeric_order => false
       }.merge(options)
       raise ArgumentError, "name_column can't be 'path'" if options[:name_column] == 'path'
       if order_is_numeric?
@@ -76,14 +77,21 @@ module ClosureTree
       end
     end
 
+    def belongs_to_with_optional_option(opts)
+      [ActiveRecord::VERSION::MAJOR < 5 ? opts.except(:optional) : opts]
+    end
+
     # lambda-ize the order, but don't apply the default order_option
     def has_many_without_order_option(opts)
-        [lambda { order(opts[:order]) }, opts.except(:order)]
+      [lambda { order(opts[:order].call) }, opts.except(:order)]
     end
 
     def has_many_with_order_option(opts)
       order_options = [opts[:order], order_by].compact
-      [lambda { order(order_options) }, opts.except(:order)]
+      [lambda {
+        order_options = order_options.map { |o| o.is_a?(Proc) ? o.call : o }
+        order(order_options)
+      }, opts.except(:order)]
     end
 
     def ids_from(scope)

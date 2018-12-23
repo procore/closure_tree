@@ -252,7 +252,7 @@ describe Label do
     end
 
     def children_name_and_order
-      name_and_order(@parent.children(reload = true))
+      name_and_order(@parent.children.reload)
     end
 
     def roots_name_and_order
@@ -286,6 +286,50 @@ describe Label do
     it 'prepends to root nodes' do
       @parent.prepend_sibling(@f)
       expect(roots_name_and_order).to eq([['f', 0], ['parent', 1], ['e', 2]])
+    end
+  end
+
+  context "doesn't order roots when requested" do
+    before :each do
+      @root1 = LabelWithoutRootOrdering.create!(:name => 'root1')
+      @root2 = LabelWithoutRootOrdering.create!(:name => 'root2')
+      @a, @b, @c, @d, @e = ('a'..'e').map { |ea| LabelWithoutRootOrdering.new(:name => ea) }
+      @root1.children << @a
+      @root1.append_child(@c)
+      @root1.prepend_child(@d)
+
+      # Reload is needed here and below because order values may have been adjusted in the DB during
+      # prepend_child, append_sibling, etc.
+      [@a, @c, @d].each(&:reload)
+
+      @a.append_sibling(@b)
+      [@a, @c, @d, @b].each(&:reload)
+      @d.prepend_sibling(@e)
+    end
+
+    it 'order_values properly' do
+      expect(@root1.reload.order_value).to be_nil
+      orders_and_names = @root1.children.reload.map { |ea| [ea.name, ea.order_value] }
+      expect(orders_and_names).to eq([['e', 0], ['d', 1], ['a', 2], ['b', 3], ['c', 4]])
+    end
+
+    it 'raises on prepending and appending to root' do
+      expect { @root1.prepend_sibling(@f) }.to raise_error(ClosureTree::RootOrderingDisabledError)
+      expect { @root1.append_sibling(@f) }.to raise_error(ClosureTree::RootOrderingDisabledError)
+    end
+
+    it 'returns empty array for siblings_before and after' do
+      expect(@root1.siblings_before).to eq([])
+      expect(@root1.siblings_after).to eq([])
+    end
+
+    it 'returns expected result for self_and_descendants_preordered' do
+      expect(@root1.self_and_descendants_preordered.to_a).to eq([@root1, @e, @d, @a, @b, @c])
+    end unless sqlite? # sqlite doesn't have a power function.
+
+    it 'raises on roots_and_descendants_preordered' do
+      expect { LabelWithoutRootOrdering.roots_and_descendants_preordered }.to raise_error(
+        ClosureTree::RootOrderingDisabledError)
     end
   end
 
@@ -341,17 +385,7 @@ describe Label do
     root = Label.create(:name => "root")
     a = Label.create(:name => "a", :parent => root)
     b = Label.create(:name => "b", :parent => root)
-    expect(a.order_value).to eq(0)
-    expect(b.order_value).to eq(1)
-    #c = Label.create(:name => "c")
 
-    # should the order_value for roots be set?
-    expect(root.order_value).not_to be_nil
-    expect(root.order_value).to eq(0)
-
-    # order_value should never be nil on a child.
-    expect(a.order_value).not_to be_nil
-    expect(a.order_value).to eq(0)
     # Add a child to root at end of children.
     root.children << b
     expect(b.parent).to eq(root)
@@ -395,28 +429,41 @@ describe Label do
   end
 
   context "order_value must be set" do
+    shared_examples_for "correct order_value" do
+      before do
+        @root = model.create(name: 'root')
+        @a, @b, @c = %w(a b c).map { |n| @root.children.create(name: n) }
+      end
 
-    before do
-      @root = Label.create(name: 'root')
-      @a, @b, @c = %w(a b c).map { |n| @root.children.create(name: n) }
+      it 'should set order_value on roots' do
+        expect(@root.order_value).to eq(expected_root_order_value)
+      end
+
+      it 'should set order_value with siblings' do
+        expect(@a.order_value).to eq(0)
+        expect(@b.order_value).to eq(1)
+        expect(@c.order_value).to eq(2)
+      end
+
+      it 'should reset order_value when a node is moved to another location' do
+        root2 = model.create(name: 'root2')
+        root2.add_child @b
+        expect(@a.order_value).to eq(0)
+        expect(@b.order_value).to eq(0)
+        expect(@c.reload.order_value).to eq(1)
+      end
     end
 
-    it 'should set order_value on roots' do
-      expect(@root.order_value).to eq(0)
+    context "with normal model" do
+      let(:model) { Label }
+      let(:expected_root_order_value) { 0 }
+      it_behaves_like "correct order_value"
     end
 
-    it 'should set order_value with siblings' do
-      expect(@a.order_value).to eq(0)
-      expect(@b.order_value).to eq(1)
-      expect(@c.order_value).to eq(2)
-    end
-
-    it 'should reset order_value when a node is moved to another location' do
-      root2 = Label.create(name: 'root2')
-      root2.add_child @b
-      expect(@a.order_value).to eq(0)
-      expect(@b.order_value).to eq(0)
-      expect(@c.reload.order_value).to eq(1)
+    context "without root ordering" do
+      let(:model) { LabelWithoutRootOrdering }
+      let(:expected_root_order_value) { nil }
+      it_behaves_like "correct order_value"
     end
   end
 
@@ -454,7 +501,7 @@ describe Label do
       it 'should retain sort orders of descendants when moving to a new parent' do
         expected_order = ('a'..'z').to_a.shuffle
         expected_order.map { |ea| first_root.add_child(Label.new(name: ea)) }
-        actual_order = first_root.children(reload = true).pluck(:name)
+        actual_order = first_root.children.reload.pluck(:name)
         expect(actual_order).to eq(expected_order)
         last_root.append_child(first_root)
         expect(last_root.self_and_descendants.pluck(:name)).to eq(%w(10 0) + expected_order)
@@ -465,13 +512,13 @@ describe Label do
         z = first_root.find_or_create_by_path(path)
         z_children_names = (100..150).to_a.shuffle.map { |ea| ea.to_s }
         z_children_names.reverse.each { |ea| z.prepend_child(Label.new(name: ea)) }
-        expect(z.children(reload = true).pluck(:name)).to eq(z_children_names)
+        expect(z.children.reload.pluck(:name)).to eq(z_children_names)
         a = first_root.find_by_path(['a'])
         # move b up to a's level:
         b = a.children.first
         a.add_sibling(b)
         expect(b.parent).to eq(first_root)
-        expect(z.children(reload = true).pluck(:name)).to eq(z_children_names)
+        expect(z.children.reload.pluck(:name)).to eq(z_children_names)
       end
     end
 
@@ -524,4 +571,76 @@ describe Label do
       expect(Label.roots_and_descendants_preordered.collect { |ea| ea.name }).to eq(expected)
     end
   end unless sqlite? # sqlite doesn't have a power function.
+
+  context 'hash_tree' do
+    before do
+      @a = EventLabel.create(name: 'a')
+      @b = DateLabel.create(name: 'b')
+      @c = DirectoryLabel.create(name: 'c')
+      (1..3).each { |i| DirectoryLabel.create!(name: "c#{ i }", mother_id: @c.id) }
+    end
+    it 'should return tree with correct scope when called on class' do
+      tree = DirectoryLabel.hash_tree
+      expect(tree.keys.size).to eq(1)
+      expect(tree.keys.first).to eq(@c)
+      expect(tree[@c].keys.size).to eq(3)
+    end
+    it 'should return tree with correct scope when called on all' do
+      tree = DirectoryLabel.all.hash_tree
+      expect(tree.keys.size).to eq(1)
+      expect(tree.keys.first).to eq(@c)
+      expect(tree[@c].keys.size).to eq(3)
+    end
+    it 'should return tree with correct scope when called on scope chain' do
+      tree = Label.where(name: 'b').hash_tree
+      expect(tree.keys.size).to eq(1)
+      expect(tree.keys.first).to eq(@b)
+      expect(tree[@b]).to eq({})
+    end
+  end
+
+  context 'relationship between nodes' do
+    before do
+      create_label_tree
+    end
+
+    it "checks parent of node" do
+      expect(@a1.parent_of?(@b1)).to be_truthy
+      expect(@c2.parent_of?(@d2)).to be_truthy      
+      expect(@c1.parent_of?(@b1)).to be_falsey
+    end
+
+    it "checks children of node" do
+      expect(@d1.child_of?(@c1)).to be_truthy
+      expect(@c2.child_of?(@b1)).to be_truthy      
+      expect(@c3.child_of?(@b1)).to be_falsey
+    end
+
+    it "checks root of node" do
+      expect(@a1.root_of?(@d1)).to be_truthy
+      expect(@a1.root_of?(@c2)).to be_truthy
+      expect(@a2.root_of?(@c2)).to be_falsey
+    end
+
+    it "checks ancestor of node" do
+      expect(@a1.ancestor_of?(@d1)).to be_truthy
+      expect(@b1.ancestor_of?(@d1)).to be_truthy
+      expect(@b1.ancestor_of?(@c3)).to be_falsey      
+    end
+
+    it "checks descendant of node" do
+      expect(@c1.descendant_of?(@a1)).to be_truthy
+      expect(@d2.descendant_of?(@a1)).to be_truthy
+      expect(@b1.descendant_of?(@a2)).to be_falsey      
+    end
+
+    it "checks descendant of node" do
+      expect(@b1.family_of?(@b1)).to be_truthy
+      expect(@a1.family_of?(@c1)).to be_truthy
+      expect(@d3.family_of?(@a2)).to be_truthy
+      expect(@c1.family_of?(@d2)).to be_truthy
+      expect(@c3.family_of?(@a1)).to be_falsey
+    end
+  end
+
 end
