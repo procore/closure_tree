@@ -1,6 +1,7 @@
 
 appraise 'activerecord-4.2' do
   gem 'activerecord', '~> 4.2.0'
+  gem 'with_advisory_lock', github: 'procore/with_advisory_lock'
   platforms :ruby do
     gem 'mysql2', "< 0.5"
     gem 'pg', "~> 0.21"
